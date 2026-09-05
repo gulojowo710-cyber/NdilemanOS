@@ -16,7 +16,7 @@ jobs:
     - name: Install Build Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y debootstrap squashfs-tools xorriso syslinux-utils ISOLINUX
+        sudo apt-get install -y debootstrap squashfs-tools xorriso syslinux-utils isolinux
 
     - name: Create Base Filesystem (Debootstrap)
       run: |
