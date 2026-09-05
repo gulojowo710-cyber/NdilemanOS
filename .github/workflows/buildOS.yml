@@ -1,0 +1,72 @@
+name: Build Mini Kiosk OS
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Install Build Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y debootstrap squashfs-tools xorriso syslinux-utils ISOLINUX
+
+    - name: Create Base Filesystem (Debootstrap)
+      run: |
+        sudo debootstrap --variant=minbase --include=linux-image-amd64,systemd-sysv,live-boot stable ./chroot http://debian.org
+
+    - name: Configure and Install Kiosk App
+      run: |
+        # Copy skrip konfigurasi ke dalam chroot
+        sudo cp config/boot.sh ./chroot/tmp/boot.sh
+        sudo cp config/mini-os.kiosk ./chroot/etc/mini-os.kiosk
+        sudo chmod +x ./chroot/etc/mini-os.kiosk
+
+        # Jalankan instalasi di dalam chroot
+        sudo chroot ./chroot /bin/bash /tmp/boot.sh
+        sudo rm ./chroot/tmp/boot.sh
+
+    - name: Compress Filesystem (SquashFS)
+      run: |
+        mkdir -p image/live
+        sudo mksquashfs chroot image/live/filesystem.squashfs -comp xz -e boot
+
+    - name: Prepare ISO Bootloader
+      run: |
+        mkdir -p image/isolinux
+        # Copy bootloader dari sistem host GitHub Runner
+        cp /usr/lib/ISOLINUX/isolinux.bin image/isolinux/
+        cp /usr/lib/syslinux/modules/bios/ldlinux.c32 image/isolinux/
+        
+        # Buat menu boot standar
+        cat <<EOF > image/isolinux/isolinux.cfg
+        default live
+        label live
+          kernel /live/vmlinuz
+          append initrd=/live/initrd.img boot=live quiet splash
+        EOF
+        
+        # Copy Kernel dan Initrd dari chroot ke folder ISO
+        sudo cp chroot/boot/vmlinuz-* image/live/vmlinuz
+        sudo cp chroot/boot/initrd.img-* image/live/initrd.img
+
+    - name: Generate ISO Image
+      run: |
+        xorriso -as mkisofs -r -V "MiniOS-Kiosk" \
+          -o mini-os-kiosk.iso \
+          -b isolinux/isolinux.bin -c isolinux/boot.cat \
+          -no-emul-boot -boot-load-size 4 -boot-info-table \
+          image
+
+    - name: Upload ISO Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: mini-os-browser-iso
+        path: mini-os-kiosk.iso
