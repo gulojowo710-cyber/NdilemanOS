@@ -1,0 +1,16 @@
+#!/bin/bash
+# Matikan manajemen daya dan screensaver
+xset s off
+xset s noblank
+xset -dpms
+
+# Jalankan Window Manager minimal (Openbox) agar browser bisa fullscreen
+openbox-session &
+
+# Loop agar jika browser tertutup, otomatis terbuka kembali
+while true; do
+  xterm -e "echo 'Memulai Browser...'" &
+  # Menggunakan Chromium sebagai contoh. Ganti URL sesuai kebutuhan.
+  chromium-browser --kiosk --no-first-run --simulate-outdated-no-btn "https://github.com"
+  sleep 2
+done
